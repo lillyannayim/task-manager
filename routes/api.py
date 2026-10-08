@@ -1,7 +1,9 @@
 from flask import Blueprint, jsonify, request
-from services.tasks import get_task, create_task, process_order, update_task, list_tasks
+from services.tasks import (
+    get_task, create_task, process_order, update_task, list_tasks, get_tasks_for_user,
+)
 from services.users import get_user
-from utils.errors import AppError
+from utils.errors import AppError, ValidationError
 
 api = Blueprint("api", __name__)
 
@@ -34,3 +36,13 @@ def update_task_route(task_id):
 @api.route("/users/<int:user_id>", methods=["GET"])
 def get_user_route(user_id):
     return jsonify(get_user(user_id))
+
+@api.route("/users/<int:user_id>/tasks", methods=["GET"])
+def get_user_tasks_route(user_id):
+    tasks = get_tasks_for_user(user_id)
+    done = request.args.get("done")
+    if done is None:
+        return jsonify(tasks)
+    if done not in ("true", "false"):
+        raise ValidationError("done", "must be 'true' or 'false'")
+    return jsonify([task for task in tasks if task["done"] == (done == "true")])

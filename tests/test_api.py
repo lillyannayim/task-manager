@@ -73,3 +73,31 @@ def test_post_task_route_missing_user_id(client):
 def test_post_task_route_user_not_found(client):
     response = client.post("/api/tasks", json={"title": "Ghost", "user_id": 999})
     assert response.status_code == 404
+
+def test_get_user_tasks_route(client):
+    response = client.get("/api/users/1/tasks")
+    assert response.status_code == 200
+    ids = {task["id"] for task in response.get_json()}
+    assert {1, 2} <= ids
+    assert 3 not in ids
+
+def test_get_user_tasks_route_not_found(client):
+    assert client.get("/api/users/999/tasks").status_code == 404
+
+def test_get_user_tasks_route_done_true(client):
+    response = client.get("/api/users/2/tasks?done=true")
+    assert response.status_code == 200
+    assert 3 in {task["id"] for task in response.get_json()}
+
+def test_get_user_tasks_route_done_false(client):
+    response = client.get("/api/users/1/tasks?done=false")
+    assert response.status_code == 200
+    assert {1, 2} <= {task["id"] for task in response.get_json()}
+    response = client.get("/api/users/2/tasks?done=false")
+    assert 3 not in {task["id"] for task in response.get_json()}
+
+@pytest.mark.parametrize("done", ["yes", "1", "True", ""])
+def test_get_user_tasks_route_invalid_done(client, done):
+    response = client.get(f"/api/users/1/tasks?done={done}")
+    assert response.status_code == 422
+    assert response.get_json()["error"].startswith("Invalid done")
