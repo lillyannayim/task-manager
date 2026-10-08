@@ -101,17 +101,21 @@ Verification: Run pytest -q when done and report the result.
 | Subagent | pytest -q result | Fix needed in same session? |
 |---|---|---|
 | Baseline | 51 passed | — |
-| SA-1 | _fill in_ | _fill in_ |
-| SA-2 | _fill in_ | _fill in_ |
-| SA-3 | _fill in_ | _fill in_ |
-| SA-4 | _fill in_ | _fill in_ |
+| SA-1 | 51 passed | No. Only services/users.py changed. Claude reformatted the one-line dict in create_user onto multiple lines, which was inside the one function change it was allowed to make. |
+| SA-2 | 51 passed | No. Only services/users.py changed. Claude pointed out that CLAUDE.md asks for a test for every new service function, but it left tests/ alone because of the constraint. |
+| SA-3 | 51 passed | No. Only routes/api.py changed. Claude added the two new names to the end of the existing services.users import line without reformatting it and put no validation in the routes. |
+| SA-4 | 65 passed (14 new) | No. Only tests/test_users.py was created, with its own client and restore_users fixtures. No test exposed a bug in application code. |
 
 ## Divergence
 
-_Fill in after all four subagents have run._
-
 **Did Claude follow the constraint field for every subagent?**
+
+Yes, I noticed that Claude followed the constraint field for all four subagents, and I confirmed it after each one by running git diff --stat or git status to check that only the expected file changed. The closest case was SA-1, where Claude rewrote the one-line dictionary in create_user as a multi-line dictionary; however, the constraint allowed changing create_user to set the default, so this stayed inside the boundary. The most interesting case was SA-2. My CLAUDE.md says every new service function should get a matching test, but SA-2's constraint said not to touch tests/. Claude followed the constraint and told me the functions had no tests yet instead of quietly writing them. This was the opposite of what happened in Plan Mode session 6, where Claude reformatted an import line that the plan only said to add to. Considering that the subagent constraints named exact files and also said what to do instead, I think they were easier for Claude to follow than a plan step that only described the change.
 
 **Did any subagent's output break the next subagent's assumption? How did you recover?**
 
+None of the subagents broke the next one's assumption during execution. SA-3 used the exact function names from SA-2's hand-off, and SA-4's tests passed against SA-3's routes on the first run. However, my first draft of this decomposition would have caused problems if I had not checked it against the real code before running anything. For example, it assumed invalid values would return a 400, but utils/errors.py makes ValidationError a 422. It also told SA-3 to update the user list endpoint, but the codebase has no list endpoint, so SA-3 might have invented one. Furthermore, it did not mention that tests/conftest.py only restores TASKS and that the client fixture lives inside tests/test_api.py, so SA-4 could have changed USERS without restoring it or edited conftest.py to share fixtures. I recovered by reading services/users.py and my CLAUDE.md and rewriting the hand-offs and prompts before SA-1 started.
+
 **Would you write the decomposition differently a second time? What would you change?**
+
+Yes, I would make a few changes. First, I would combine SA-1 and SA-2 into one subagent, since both only edited services/users.py and splitting them did not create a real layer boundary in this codebase where the data dictionaries live inside the service files. Second, I would let SA-4 put restore_users and a shared client fixture in tests/conftest.py, because now tests/test_api.py and tests/test_users.py each define their own client fixture, which is duplicated code. Third, I would write the hand-off field as exact function signatures and response shapes from the start, because the version that worked best was the one that named the status code, the JSON shape, and the error class directly. All in all, the biggest lesson for me was that the decomposition was only as good as my knowledge of the real files, so I would read the code before writing the table instead of after.

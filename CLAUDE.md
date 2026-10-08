@@ -6,8 +6,11 @@ Python Flask API for managing tasks and users. Data is stored in memory (no data
 - Install: `.venv/bin/pip install -r requirements.txt ruff` (ruff lives in .venv only, not in requirements.txt)
 - Run all tests: `pytest -v`
 - Run task tests only: `pytest tests/test_tasks.py -v`
+- Quick check after each step or subagent: `pytest -q`
 - Lint: `.venv/bin/ruff check .`
 - Run `pytest -v` and `.venv/bin/ruff check .` before finishing any task.
+- Ruff currently reports 6 pre-existing errors (in `app.py`, `routes/api.py` and `tests/test_tasks.py`).
+  Only make sure you add no new ones; do not fix the existing ones unless the prompt asks.
 
 ## Architecture
 Layered: `routes/api.py` → `services/*.py` → in-memory data dicts.
@@ -24,6 +27,10 @@ Layered: `routes/api.py` → `services/*.py` → in-memory data dicts.
 - Services may call each other's functions, not each other's data. To check a user
   exists from `services/tasks.py`, call `get_user(user_id)` (it raises `NotFoundError`).
   Never import or read `USERS` outside `services/users.py`.
+- Boundary between `services/` and `routes/`: functions in `services/` never import Flask or return
+  `jsonify`, responses or status codes and signal every error by raising an `AppError` subclass, the way
+  `get_user` in `services/users.py` does, while each route in `routes/api.py` only reads the request,
+  calls one service function and returns its result.
 
 ## Conventions
 - Follow `services/users.py` as the pattern for every service function.
@@ -56,3 +63,11 @@ Layered: `routes/api.py` → `services/*.py` → in-memory data dicts.
 - Do not edit existing tests in `tests/test_tasks.py` to make them pass. Fix the code instead.
 - Do not add packages to `requirements.txt` (pinned: `flask==3.0.0`, `pytest==8.0.0`)
   or add a database.
+- Do not reformat or reorder the import block in `routes/api.py`. To import a new name,
+  add it to the end of the existing `from services... import` line.
+- Do not reformat existing lines in `services/tasks.py` or `services/users.py` (for example the
+  record dicts in `create_task` and `create_user`); change only the lines the task needs.
+- When a prompt limits edits to `services/`, do not create or edit anything in `tests/` to satisfy
+  the test rule above; report which functions still need tests instead.
+- Do not edit `tests/conftest.py` unless the prompt asks. It only restores `TASKS`; a test file
+  that changes `USERS` restores it with its own fixture, as `tests/test_users.py` does.
