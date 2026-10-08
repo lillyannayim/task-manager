@@ -90,3 +90,12 @@ def test_list_tasks_by_priority():
 def test_list_tasks_invalid_priority():
     with pytest.raises(ValidationError, match="Invalid priority"):
         list_tasks(9)
+
+@pytest.mark.parametrize("user_id", [None, "1", 1.5, True])
+def test_create_task_invalid_user_id(user_id):
+    with pytest.raises(ValidationError, match="Invalid user_id"):
+        create_task("Bad user", user_id)
+
+def test_create_task_user_not_found():
+    with pytest.raises(NotFoundError, match="User not found"):
+        create_task("Ghost", 999)

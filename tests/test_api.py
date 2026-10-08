@@ -59,3 +59,17 @@ def test_get_tasks_route_invalid_priority(client, priority):
     response = client.get(f"/api/tasks?priority={priority}")
     assert response.status_code == 422
     assert response.get_json()["error"].startswith("Invalid priority")
+
+def test_post_task_route_missing_title(client):
+    response = client.post("/api/tasks", json={"user_id": 1})
+    assert response.status_code == 422
+    assert response.get_json()["error"].startswith("Invalid title")
+
+def test_post_task_route_missing_user_id(client):
+    response = client.post("/api/tasks", json={"title": "No owner"})
+    assert response.status_code == 422
+    assert response.get_json()["error"].startswith("Invalid user_id")
+
+def test_post_task_route_user_not_found(client):
+    response = client.post("/api/tasks", json={"title": "Ghost", "user_id": 999})
+    assert response.status_code == 404

@@ -24,7 +24,7 @@ def list_tasks_route():
 def create_task_route():
     data = request.get_json()
     kwargs = {"priority": data["priority"]} if "priority" in data else {}
-    return jsonify(create_task(data["title"], data["user_id"], **kwargs)), 201
+    return jsonify(create_task(data.get("title"), data.get("user_id"), **kwargs)), 201
 
 @api.route("/tasks/<int:task_id>", methods=["PATCH"])
 def update_task_route(task_id):
