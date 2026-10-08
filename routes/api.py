@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from services.tasks import (
     get_task, create_task, process_order, update_task, list_tasks, get_tasks_for_user,
 )
-from services.users import get_user
+from services.users import get_user, get_notification_pref, update_notification_pref
 from utils.errors import AppError, ValidationError
 
 api = Blueprint("api", __name__)
@@ -46,3 +46,13 @@ def get_user_tasks_route(user_id):
     if done not in ("true", "false"):
         raise ValidationError("done", "must be 'true' or 'false'")
     return jsonify([task for task in tasks if task["done"] == (done == "true")])
+
+@api.route("/users/<int:user_id>/notifications", methods=["GET"])
+def get_notification_pref_route(user_id):
+    return jsonify({"notification_pref": get_notification_pref(user_id)})
+
+@api.route("/users/<int:user_id>/notifications", methods=["PATCH"])
+def update_notification_pref_route(user_id):
+    data = request.get_json()
+    pref = update_notification_pref(user_id, data.get("notification_pref"))
+    return jsonify({"notification_pref": pref})
