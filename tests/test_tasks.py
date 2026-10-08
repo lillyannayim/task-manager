@@ -1,7 +1,7 @@
 import copy
 
 import pytest
-from services.tasks import TASKS, process_order, get_task, create_task, get_tasks_for_user, update_task
+from services.tasks import TASKS, process_order, get_task, create_task, get_tasks_for_user, update_task, list_tasks
 from utils.errors import NotFoundError, ValidationError
 
 @pytest.fixture(autouse=True)
@@ -122,3 +122,37 @@ def test_patch_task_route_invalid_priority(client):
 
 def test_get_task_route_includes_priority(client):
     assert client.get("/api/tasks/1").get_json()["priority"] == 3
+
+def test_list_tasks_all():
+    assert {1, 2, 3} <= {task["id"] for task in list_tasks()}
+
+def test_list_tasks_by_priority():
+    update_task(1, priority=1)
+    result = list_tasks(1)
+    ids = {task["id"] for task in result}
+    assert 1 in ids
+    assert not {2, 3} & ids
+    assert all(task["priority"] == 1 for task in result)
+
+def test_list_tasks_invalid_priority():
+    with pytest.raises(ValidationError, match="Invalid priority"):
+        list_tasks(9)
+
+def test_get_tasks_route_all(client):
+    response = client.get("/api/tasks")
+    assert response.status_code == 200
+    assert {1, 2, 3} <= {task["id"] for task in response.get_json()}
+
+def test_get_tasks_route_filter(client):
+    client.patch("/api/tasks/2", json={"priority": 1})
+    response = client.get("/api/tasks?priority=1")
+    assert response.status_code == 200
+    ids = {task["id"] for task in response.get_json()}
+    assert 2 in ids
+    assert not {1, 3} & ids
+
+@pytest.mark.parametrize("priority", ["9", "abc"])
+def test_get_tasks_route_invalid_priority(client, priority):
+    response = client.get(f"/api/tasks?priority={priority}")
+    assert response.status_code == 422
+    assert response.get_json()["error"].startswith("Invalid priority")
