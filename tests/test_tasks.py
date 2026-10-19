@@ -99,3 +99,7 @@ def test_create_task_invalid_user_id(user_id):
 def test_create_task_user_not_found():
     with pytest.raises(NotFoundError, match="User not found"):
         create_task("Ghost", 999)
+
+def test_process_order_not_found_error():
+    with pytest.raises(NotFoundError, match="Task not found"):
+        process_order(999)
