@@ -1,5 +1,8 @@
+import copy
+
 import pytest
 
+from services.tags import TAGS
 from services.tasks import get_task
 
 
@@ -101,3 +104,16 @@ def test_get_user_tasks_route_invalid_done(client, done):
     response = client.get(f"/api/users/1/tasks?done={done}")
     assert response.status_code == 422
     assert response.get_json()["error"].startswith("Invalid done")
+
+@pytest.fixture
+def restore_tags():
+    saved = copy.deepcopy(TAGS)
+    yield
+    TAGS.clear()
+    TAGS.update(saved)
+
+def test_post_tag_route(client, restore_tags):
+    response = client.post("/api/tags", json={"name": "urgent"})
+    assert response.status_code == 201
+    assert response.get_json()["name"] == "urgent"
+    assert response.get_json()["id"] in TAGS
