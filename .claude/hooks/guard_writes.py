@@ -7,7 +7,8 @@ on stdin. Exit 0 lets the call run. Exit 2 blocks it, and the message printed to
 stderr is shown to Claude so it knows why.
 
 Three guards:
-  1. Path guard    (Write/Edit/MultiEdit): blocks edits to BLOCKED_PATHS.
+  1. Path guard    (Write/Edit/MultiEdit, and Bash commands that write files):
+     blocks edits to BLOCKED_PATHS, ignoring upper/lower case.
   2. Bash guard    (Bash): blocks commands matching BLOCKED_COMMANDS.
   3. Content guard (Write/Edit/MultiEdit): blocks hardcoded database connection
      strings in CONTENT_CHECKED_PATHS.
@@ -53,11 +54,34 @@ def block(message: str) -> None:
 
 
 def relative_path(file_path: str, cwd: str) -> str:
-    """Turn the tool's file_path into a repo-relative path like utils/errors.py."""
+    """Turn the tool's file_path into a repo-relative, lowercase path like utils/errors.py.
+
+    Lowercasing matters because macOS ignores case: Utils/errors.py and
+    utils/errors.py are the same file (Vector 1 in HOOK_LOG.md).
+    """
     root = os.environ.get("CLAUDE_PROJECT_DIR") or cwd or os.getcwd()
     if os.path.isabs(file_path):
         file_path = os.path.relpath(file_path, root)
-    return os.path.normpath(file_path).replace(os.sep, "/")
+    return os.path.normpath(file_path).replace(os.sep, "/").casefold()
+
+
+# Bash commands that can write to a file: redirection, tee, sed/perl -i,
+# mv, cp, rm, truncate, dd, ln, and inline python. Used with the path check
+# so read-only commands like `cat utils/errors.py` are still allowed.
+WRITE_IN_BASH = re.compile(
+    r">|\btee\b|\b(sed|perl)\b[^|;&]*\s-i|\b(mv|cp|rm|truncate|dd|ln|install)\b|\bpython3?\s+-c\b",
+    re.IGNORECASE,
+)
+
+
+def bash_writes_blocked_path(command: str):
+    """Return the protected path a Bash command would write to, if any (Vector 2)."""
+    cleaned = re.sub(r"\d?>&\d|[12]?>\s*/dev/null", " ", command)  # 2>&1 and >/dev/null are not file writes
+    lowered = cleaned.casefold()
+    for path in BLOCKED_PATHS:
+        if path.casefold() in lowered and WRITE_IN_BASH.search(cleaned):
+            return path
+    return None
 
 
 def new_content(tool_name: str, tool_input: dict) -> str:
@@ -80,13 +104,16 @@ def main() -> None:
         for pattern, reason in BLOCKED_COMMANDS:
             if re.search(pattern, command, re.IGNORECASE):
                 block(f"command not allowed: {reason}.")
+        path = bash_writes_blocked_path(command)
+        if path:
+            block(f"this command would write to {path}, which is protected: {BLOCKED_PATHS[path]}.")
         sys.exit(0)
 
     if tool_name in ("Write", "Edit", "MultiEdit"):
         path = relative_path(tool_input.get("file_path", ""), event.get("cwd", ""))
         if path in BLOCKED_PATHS:
             block(f"{path} is protected: {BLOCKED_PATHS[path]}.")
-        if path in CONTENT_CHECKED_PATHS and CONNECTION_STRING.search(new_content(tool_name, tool_input)):
+        if path in {p.casefold() for p in CONTENT_CHECKED_PATHS} and CONNECTION_STRING.search(new_content(tool_name, tool_input)):
             block(
                 f"{path} would contain a hardcoded database connection string. "
                 "Connection strings must come from environment variables "
