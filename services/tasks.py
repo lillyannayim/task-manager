@@ -23,6 +23,19 @@ def _validate_priority(priority: int) -> None:
         raise ValidationError("priority", "must be an integer between 1 and 5")
 
 def process_order(task_id: int) -> dict:
+    """Mark a task as done.
+
+    Args:
+        task_id: The unique identifier for the task.
+
+    Returns:
+        The updated task record.
+
+    Raises:
+        NotFoundError: If no task exists with the given ID.
+    """
+    if task_id not in TASKS:
+        raise NotFoundError("Task")
     task = TASKS[task_id]
     task["done"] = True
     return task
