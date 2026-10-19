@@ -15,6 +15,8 @@ Context:
 
 Constraints:
 - Only add new test functions. Do not edit or delete existing tests.
+- Already covered: if tests for the happy path and every `Raises:` case already exist,
+  add nothing. Report which existing tests cover each case instead.
 - Do not change any code in `services/`. If a test fails because of a real bug, stop and
   report the bug instead of changing the code or weakening the test.
 - Do not touch `tests/conftest.py`.

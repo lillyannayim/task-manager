@@ -11,6 +11,13 @@ Python Flask API for managing tasks and users. Data is stored in memory (no data
 - Run `pytest -v` and `.venv/bin/ruff check .` before finishing any task.
 - Ruff currently reports 6 pre-existing errors (in `app.py`, `routes/api.py` and `tests/test_tasks.py`).
   Only make sure you add no new ones; do not fix the existing ones unless the prompt asks.
+- Slash commands (in `.claude/commands/`):
+  - `/audit-errors <file>`: make every function in one `services/` file raise `AppError` subclasses
+    instead of raw exceptions; skips functions that are already correct (e.g. `/audit-errors services/tasks.py`).
+  - `/scaffold-endpoint <resource> <METHOD>`: add one new endpoint across `routes/api.py`,
+    `services/<resource>.py` and `tests/test_api.py` (e.g. `/scaffold-endpoint tags POST`).
+  - `/add-tests <function>`: add happy-path and `Raises:` tests for one existing service function
+    without changing code; adds nothing if it is already covered (e.g. `/add-tests process_order`).
 
 ## Architecture
 Layered: `routes/api.py` → `services/*.py` → in-memory data dicts.
@@ -56,18 +63,27 @@ Layered: `routes/api.py` → `services/*.py` → in-memory data dicts.
   `routes/api.py` and `tests/test_tasks.py` call them as-is.
 - Do not rename `process_order`. It marks a task as done; the name is legacy,
   but `routes/api.py` imports it by name.
-- Do not edit `utils/errors.py` status codes (404, 422) or constructor arguments.
-  API responses depend on them.
 - Do not change the seed records in `TASKS` (ids 1-3) or `USERS` (ids 1-2).
   Tests depend on them.
 - Do not edit existing tests in `tests/test_tasks.py` to make them pass. Fix the code instead.
-- Do not add packages to `requirements.txt` (pinned: `flask==3.0.0`, `pytest==8.0.0`)
-  or add a database.
+- Do not add a database.
 - Do not reformat or reorder the import block in `routes/api.py`. To import a new name,
   add it to the end of the existing `from services... import` line.
 - Do not reformat existing lines in `services/tasks.py` or `services/users.py` (for example the
   record dicts in `create_task` and `create_user`); change only the lines the task needs.
 - When a prompt limits edits to `services/`, do not create or edit anything in `tests/` to satisfy
   the test rule above; report which functions still need tests instead.
-- Do not edit `tests/conftest.py` unless the prompt asks. It only restores `TASKS`; a test file
-  that changes `USERS` restores it with its own fixture, as `tests/test_users.py` does.
+
+## Hooks
+`.claude/hooks/guard_writes.py` is a PreToolUse hook, registered in `.claude/settings.json` with the
+matcher `Write|Edit|MultiEdit|Bash`, that runs before each of those tool calls and blocks the call by
+exiting with code 2 and printing the reason, which Claude sees. It never lets Claude write
+`utils/errors.py`, `requirements.txt` or `tests/conftest.py` (`BLOCKED_PATHS`), in any capitalization and
+through Bash writes such as `>`, `sed -i`, `mv` or `cp` as well as the Edit tools, so a person edits those
+files by hand. It also blocks the Bash patterns `DROP TABLE`/`TRUNCATE TABLE`, `rm -rf` and
+`git push --force` (`BLOCKED_COMMANDS`), and any write to `services/tasks.py` or `services/users.py` that
+contains a `postgresql://` or `sqlite:///` connection string (`CONTENT_CHECKED_PATHS`). To add a rule, add
+a path and reason to `BLOCKED_PATHS`, a `(regex, reason)` pair using `\b` word boundaries to
+`BLOCKED_COMMANDS`, or a path to `CONTENT_CHECKED_PATHS`, then test it with
+`echo '<tool call JSON>' | python3 .claude/hooks/guard_writes.py; echo "exit=$?"` (`exit=2` means blocked;
+HOOK_LOG.md has example JSON) and run `pytest -q`.

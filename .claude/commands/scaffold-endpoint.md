@@ -27,6 +27,9 @@ Constraints:
 - No business logic in the route handler. It may only read the request, call one
   service function and return `jsonify(...)` with a status code. All validation and
   lookups go in the service function.
+- Read the JSON body with `request.get_json(silent=True) or {}` so a request with a missing
+  or invalid body still reaches the service function and returns its 422, instead of failing
+  inside Flask before the service runs.
 - Do not reorder or reformat the import block in `routes/api.py`; add a new
   `from services.<resource> import ...` line directly after the existing services imports.
 - Do not edit existing routes, existing service functions or existing tests.
